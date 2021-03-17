@@ -7,6 +7,7 @@ const { check, validationResult } = require('express-validator');
 
 const Profile = require('../../models/Profile');
 const User = require('../../models/User');
+const Post = require('../../models/Post');
 
 // GET api/profile/me
 // Get current users profile
@@ -20,6 +21,7 @@ router.get('/me', auth, async (req, res) => {
     if (!profile) {
       return res.status(400).json({ msg: 'there is no profile' });
     }
+    console.log(profile);
 
     res.json(profile);
   } catch (err) {
@@ -108,7 +110,7 @@ router.post(
   }
 );
 
-// GET api/profile/
+// GET api/profile
 // Get all profile
 // Public
 router.get('/', async (req, res) => {
@@ -129,8 +131,7 @@ router.get('/user/:user_id', async (req, res) => {
     const profile = await Profile.findOne({
       user: req.params.user_id,
     }).populate('user', ['name', 'avatar']);
-
-    console.log(`/user:user_id , profile: ${profile}`);
+    console.log(typeof profile.experience);
 
     if (!profile) {
       return res.status(400).json({ msg: 'Profile not found' });
@@ -151,9 +152,11 @@ router.get('/user/:user_id', async (req, res) => {
 // Private
 router.delete('/', auth, async (req, res) => {
   try {
-    //Remove profile
+    // Remove user posts
+    await Post.deleteMany({ user: req.user.id });
+    // Remove profile
     await Profile.findOneAndRemove({ user: req.user.id });
-    //Remove user
+    // Remove user
     await User.findOneAndRemove({ _id: req.user.id });
 
     res.json({ msg: 'User removed' });
@@ -318,10 +321,11 @@ router.delete('/education/:edu_id', auth, async (req, res) => {
   }
 });
 
-// GET api/profile/education/:eud_id
+// GET api/profile/profile/:eud_id
 // Get user repos from github
 // Public
 router.get('/github/:username', (req, res) => {
+  // console.log(req.param.username);
   try {
     const options = {
       uri: `https://api.github.com/users/${
@@ -335,12 +339,23 @@ router.get('/github/:username', (req, res) => {
 
     request(options, (error, response, body) => {
       if (error) console.error(error);
-      console.log(response);
+      const data = JSON.parse(body);
+      const arr = [];
+      data.map((repo) => {
+        arr.push({
+          id: repo.id,
+          html_url: repo.html_url,
+          name: repo.name,
+          description: repo.description,
+          stargazers: repo.stargazers_count,
+          watchers: repo.watchers_count,
+          forks: repo.forks_count,
+        });
+      });
       if (response.statusCode !== 200) {
         return res.status(404).json({ msg: 'No Github profile found' });
       }
-
-      res.json(JSON.parse(body));
+      res.json(arr);
     });
   } catch (err) {
     console.error(err.message);
